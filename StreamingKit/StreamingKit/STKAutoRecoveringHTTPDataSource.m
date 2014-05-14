@@ -355,7 +355,7 @@ static void PopulateOptionsWithDefault(STKAutoRecoveringHTTPDataSourceOptions* o
 
 -(void) dataSourceEof:(STKDataSource*)dataSource
 {
-	NSLog(@"dataSourceEof");
+//	NSLog(@"dataSourceEof");
 	
     if ([self position] < [self length])
     {
