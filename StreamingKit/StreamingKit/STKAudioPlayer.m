@@ -1901,9 +1901,6 @@ static BOOL GetHardwareCodecClassDesc(UInt32 formatId, AudioClassDescription* cl
 
     audioConverterAudioStreamBasicDescription = *asbd;
 
-    NSLog(@"Source sample rate: %4.2f", asbd->mSampleRate);
-    NSLog(@"Source channels   : %d", asbd->mChannelsPerFrame);
-
     if (asbd->mFormatID == kAudioFormatMPEG4AAC_HE_V2)
     {
         return;
