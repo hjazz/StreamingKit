@@ -794,18 +794,20 @@ static void AudioFileStreamPacketsProc(void* clientData, UInt32 numberBytes, UIn
         }
         case kAudioFileStreamProperty_DataFormat:
         {
-            AudioStreamBasicDescription newBasicDescription;
             STKQueueEntry* entryToUpdate = currentlyReadingEntry;
 
-            if (!currentlyReadingEntry->parsedHeader)
+            if (!entryToUpdate->parsedHeader)
             {
-                UInt32 size = sizeof(newBasicDescription);
-                
-                AudioFileStreamGetProperty(inAudioFileStream, kAudioFileStreamProperty_DataFormat, &size, &newBasicDescription);
+                if (entryToUpdate->audioStreamBasicDescription.mSampleRate == 0) {
+                    AudioStreamBasicDescription newBasicDescription;
+
+                    UInt32 size = sizeof(newBasicDescription);
+                    AudioFileStreamGetProperty(inAudioFileStream, kAudioFileStreamProperty_DataFormat, &size, &newBasicDescription);
+                    entryToUpdate->audioStreamBasicDescription = newBasicDescription;
+                }
 
                 pthread_mutex_lock(&playerMutex);
                 
-                entryToUpdate->audioStreamBasicDescription = newBasicDescription;
                 entryToUpdate->sampleRate = entryToUpdate->audioStreamBasicDescription.mSampleRate;
                 entryToUpdate->packetDuration = entryToUpdate->audioStreamBasicDescription.mFramesPerPacket / entryToUpdate->sampleRate;
 
@@ -1900,6 +1902,11 @@ static BOOL GetHardwareCodecClassDesc(UInt32 formatId, AudioClassDescription* cl
     }
 
     audioConverterAudioStreamBasicDescription = *asbd;
+
+    if (asbd->mFormatID == kAudioFormatMPEG4AAC_HE_V2)
+    {
+        return;
+    }
     
 	status = AudioFileStreamGetPropertyInfo(audioFileStream, kAudioFileStreamProperty_MagicCookieData, &cookieSize, &writable);
     
