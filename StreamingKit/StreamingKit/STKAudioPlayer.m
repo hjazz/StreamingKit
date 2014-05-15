@@ -1057,7 +1057,6 @@ static void AudioFileStreamPacketsProc(void* clientData, UInt32 numberBytes, UIn
 -(void) createPlaybackThread
 {
     playbackThread = [[NSThread alloc] initWithTarget:self selector:@selector(startInternal) object:nil];
-    
     [playbackThread start];
     
     [threadStartedLock lockWhenCondition:1];
@@ -1377,6 +1376,7 @@ static void AudioFileStreamPacketsProc(void* clientData, UInt32 numberBytes, UIn
 	{
 		playbackThreadRunLoop = [NSRunLoop currentRunLoop];
 		NSThread.currentThread.threadPriority = 1;
+        NSThread.currentThread.name = @"Playback";
 		
 		[threadStartedLock lockWhenCondition:0];
         [threadStartedLock unlockWithCondition:1];
@@ -2603,7 +2603,10 @@ static OSStatus OutputRenderCallback(void* inRefCon, AudioUnitRenderActionFlags*
 
         audioPlayer.volume = targetVolume;
         if (targetVolume < 0.02) {
-            [audioPlayer stop];
+            audioPlayer->stopStartFrames = audioPlayer->stopEndFrames = -1;
+            dispatch_async(dispatch_get_main_queue(), ^{
+                [audioPlayer dispose];
+            });
         }
     }
 
