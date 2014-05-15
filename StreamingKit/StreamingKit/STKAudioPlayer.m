@@ -261,6 +261,11 @@ static AudioStreamBasicDescription canonicalAudioStreamBasicDescription;
 
     double overlapSeconds;
     BOOL overlapEventFired;
+
+    BOOL stopFadeOutRequested;
+    double stopFadeOutSeconds;
+    SInt64 stopStartFrames;
+    SInt64 stopEndFrames;
 }
 
 @property (readwrite) STKAudioPlayerInternalState internalState;
@@ -475,6 +480,10 @@ static void AudioFileStreamPacketsProc(void* clientData, UInt32 numberBytes, UIn
         self->equalizerEnabled = optionsIn.equalizerBandFrequencies[0] != 0;
         self->overlapSeconds = 0;
         self->overlapEventFired = NO;
+        self->stopStartFrames = -1;
+        self->stopEndFrames = -1;
+        self->stopFadeOutRequested = NO;
+        self->stopFadeOutSeconds = 0;
 
         PopulateOptionsWithDefault(&options);
         
@@ -1686,6 +1695,12 @@ static void AudioFileStreamPacketsProc(void* clientData, UInt32 numberBytes, UIn
     OSSpinLockUnlock(&pcmBufferSpinLock);
 }
 
+-(void) stopIn:(double)seconds
+{
+    self->stopFadeOutRequested = YES;
+    self->stopFadeOutSeconds = seconds;
+}
+
 -(void) stop
 {
     pthread_mutex_lock(&playerMutex);
@@ -2571,6 +2586,24 @@ static OSStatus OutputRenderCallback(void* inRefCon, AudioUnitRenderActionFlags*
         if (remainSeconds < audioPlayer->overlapSeconds) {
             [audioPlayer.delegate audioPlayer:audioPlayer willFinishPlayingQueueItemId:entry.queueItemId after:(double) remainSeconds];
             audioPlayer->overlapEventFired = YES;
+        }
+    }
+
+    // 스믈스믈 fade out 시작
+    if (entry && audioPlayer->stopFadeOutRequested) {
+        audioPlayer->stopFadeOutRequested = NO;
+        audioPlayer->stopStartFrames = entry->framesPlayed;
+        audioPlayer->stopEndFrames = entry->framesPlayed +
+                (SInt64)(entry->audioStreamBasicDescription.mSampleRate * audioPlayer->stopFadeOutSeconds);
+    }
+
+    // 스믈스믈 fade out 진행
+    if (entry && audioPlayer->stopEndFrames > 0) {
+        Float32 targetVolume = (Float32)(audioPlayer->stopEndFrames - entry->framesPlayed) / (Float32)(audioPlayer->stopEndFrames - audioPlayer->stopStartFrames);
+
+        audioPlayer.volume = targetVolume;
+        if (targetVolume < 0.02) {
+            [audioPlayer stop];
         }
     }
 

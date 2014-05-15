@@ -237,6 +237,8 @@ typedef void(^STKFrameFilter)(UInt32 channelsPerFrame, UInt32 bytesPerFrame, UIn
 /// Stops playback of the current file, flushes all the buffers and removes any pending queued items
 -(void) stop;
 
+-(void) stopIn:(double)seconds;
+
 /// Mutes playback
 -(void) mute;
 
