@@ -117,6 +117,10 @@ typedef void(^STKFrameFilter)(UInt32 channelsPerFrame, UInt32 bytesPerFrame, UIn
 /// Raised when an item has finished buffering (may or may not be the currently playing item)
 /// This event may be raised multiple times for the same item if seek is invoked on the player
 -(void) audioPlayer:(STKAudioPlayer*)audioPlayer didFinishBufferingSourceWithQueueItemId:(NSObject*)queueItemId;
+/// 곡 재생이 곧 끝날 것을 예고해준다.
+/// setOverlapped:(double)seconds 에 0 이상의 값을 지정했을 때만 동작한다.
+/// 이 값이 0이면 이벤트를 발생하지 않는다.
+-(void) audioPlayer:(STKAudioPlayer*)audioPlayer willFinishPlayingQueueItemId:(NSObject*)queueItemId after:(double)seconds;
 /// Raised when the state of the player has changed
 -(void) audioPlayer:(STKAudioPlayer*)audioPlayer stateChanged:(STKAudioPlayerState)state previousState:(STKAudioPlayerState)previousState;
 /// Raised when an item has finished playing
@@ -265,5 +269,8 @@ typedef void(^STKFrameFilter)(UInt32 channelsPerFrame, UInt32 bytesPerFrame, UIn
 
 /// Sets the gain value (from -96 low to +24 high) for an equalizer band (0 based index)
 -(void) setGain:(float)gain forEqualizerBand:(int)bandIndex;
+
+/// 노래가 끝나기 'seconds' 전에 willFinishPlayingQueueItemId 이벤트 발송을 요청한다.
+-(void) setOverlapped:(double)seconds;
 
 @end

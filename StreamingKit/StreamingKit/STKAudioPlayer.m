@@ -258,6 +258,9 @@ static AudioStreamBasicDescription canonicalAudioStreamBasicDescription;
     volatile BOOL disposeWasRequested;
     volatile BOOL seekToTimeWasRequested;
     volatile STKAudioPlayerStopReason stopReason;
+
+    double overlapSeconds;
+    BOOL overlapEventFired;
 }
 
 @property (readwrite) STKAudioPlayerInternalState internalState;
@@ -468,8 +471,10 @@ static void AudioFileStreamPacketsProc(void* clientData, UInt32 numberBytes, UIn
     {
         options = optionsIn;
 		
-		self->volume = 1.0;
+        self->volume = 1.0;
         self->equalizerEnabled = optionsIn.equalizerBandFrequencies[0] != 0;
+        self->overlapSeconds = 0;
+        self->overlapEventFired = NO;
 
         PopulateOptionsWithDefault(&options);
         
@@ -1476,77 +1481,66 @@ static void AudioFileStreamPacketsProc(void* clientData, UInt32 numberBytes, UIn
 -(void) dataSourceDataAvailable:(STKDataSource*)dataSourceIn
 {
 	OSStatus error;
-    
-    if (currentlyReadingEntry.dataSource != dataSourceIn)
-    {
+
+    if (currentlyReadingEntry.dataSource != dataSourceIn) {
         return;
     }
-    
-    if (!currentlyReadingEntry.dataSource.hasBytesAvailable)
-    {
+
+    if (!currentlyReadingEntry.dataSource.hasBytesAvailable) {
         return;
     }
-    
+
     int read = [currentlyReadingEntry.dataSource readIntoBuffer:readBuffer withSize:readBufferSize];
-    
-    if (read == 0)
-    {
+
+    if (read == 0) {
         return;
     }
-    
-    if (audioFileStream == 0)
-    {
-        error = AudioFileStreamOpen((__bridge void*)self, AudioFileStreamPropertyListenerProc, AudioFileStreamPacketsProc, dataSourceIn.audioFileTypeHint, &audioFileStream);
-        
-        if (error)
-        {
+
+    if (audioFileStream == 0) {
+        error = AudioFileStreamOpen((__bridge void *) self, AudioFileStreamPropertyListenerProc, AudioFileStreamPacketsProc, dataSourceIn.audioFileTypeHint, &audioFileStream);
+
+        if (error) {
             [self unexpectedError:STKAudioPlayerErrorAudioSystemError];
-            
+
             return;
         }
     }
-    
-    if (read < 0)
-    {
+
+    if (read < 0) {
         // iOS will shutdown network connections if the app is backgrounded (i.e. device is locked when player is paused)
         // We try to reopen -- should probably add a back-off protocol in the future
-        
+
         SInt64 position = currentlyReadingEntry.dataSource.position;
-        
+
         [currentlyReadingEntry.dataSource seekToOffset:position];
-        
+
         return;
     }
-    
+
     int flags = 0;
-    
-    if (discontinuous)
-    {
+
+    if (discontinuous) {
         flags = kAudioFileStreamParseFlag_Discontinuity;
     }
-    
-    if (audioFileStream)
-    {
+
+    if (audioFileStream) {
         error = AudioFileStreamParseBytes(audioFileStream, read, readBuffer, flags);
-        
-        if (error)
-        {
-            if (dataSourceIn == currentlyPlayingEntry.dataSource)
-            {
+
+        if (error) {
+            if (dataSourceIn == currentlyPlayingEntry.dataSource) {
                 [self unexpectedError:STKAudioPlayerErrorStreamParseBytesFailed];
             }
-            
+
             return;
         }
-        
+
         OSSpinLockLock(&currentEntryReferencesLock);
-        
-        if (currentlyReadingEntry == nil)
-        {
+
+        if (currentlyReadingEntry == nil) {
             [dataSourceIn unregisterForEvents];
             [dataSourceIn close];
         }
-        
+
         OSSpinLockUnlock(&currentEntryReferencesLock);
     }
 }
@@ -1571,7 +1565,7 @@ static void AudioFileStreamPacketsProc(void* clientData, UInt32 numberBytes, UIn
 
         return;
     }
-    
+
     if (disposeWasRequested)
     {
         return;
@@ -2571,8 +2565,16 @@ static OSStatus OutputRenderCallback(void* inRefCon, AudioUnitRenderActionFlags*
         }
     }
 
+    // n초 후 재생이 끝남을 예고하는 이벤트 발송을 위해.
+    if (entry && entry->lastFrameQueued >= 0 && audioPlayer->overlapSeconds > 0 && !audioPlayer->overlapEventFired) {
+        Float64 remainSeconds = (entry->lastFrameQueued - entry->framesPlayed) / entry->audioStreamBasicDescription.mSampleRate;
+        if (remainSeconds < audioPlayer->overlapSeconds) {
+            [audioPlayer.delegate audioPlayer:audioPlayer willFinishPlayingQueueItemId:entry.queueItemId after:(double) remainSeconds];
+            audioPlayer->overlapEventFired = YES;
+        }
+    }
 
-	if (entry)
+    if (entry)
 	{
 		if (state == STKAudioPlayerInternalStateWaitingForData)
 		{
@@ -3170,5 +3172,11 @@ static OSStatus OutputRenderCallback(void* inRefCon, AudioUnitRenderActionFlags*
     self->equalizerEnabled = value;
 }
 
+#pragma Additional features
+
+-(void) setOverlapped:(double)seconds {
+    self->overlapSeconds = seconds;
+    self->overlapEventFired = NO;
+}
 
 @end
