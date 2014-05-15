@@ -136,6 +136,9 @@ typedef void(^STKFrameFilter)(UInt32 channelsPerFrame, UInt32 bytesPerFrame, UIn
 /// Gets or sets the volume (ranges 0 - 1.0).
 /// On iOS the STKAudioPlayerOptionEnableMultichannelMixer option must be enabled for volume to work.
 @property (readwrite) Float32 volume;
+/// 재생 시작시 fadeInTime seconds 시간동안 volume 을 천천히 증가시킨다.
+/// 사용하지 않을 때는 0을 넘긴다.
+@property (readwrite) double fadeInTime;
 /// Gets or sets the player muted state
 @property (readwrite) BOOL muted;
 /// Gets the current item duration in seconds

@@ -2559,7 +2559,19 @@ static OSStatus OutputRenderCallback(void* inRefCon, AudioUnitRenderActionFlags*
     UInt32 end = (audioPlayer->pcmBufferFrameStartIndex + audioPlayer->pcmBufferUsedFrameCount) % audioPlayer->pcmBufferTotalFrameCount;
     BOOL signal = audioPlayer->waiting && used < audioPlayer->pcmBufferTotalFrameCount / 2;
 	NSArray* frameFilters = audioPlayer->frameFilters;
-    
+
+    Float64 sampleRate = entry->audioStreamBasicDescription.mSampleRate;
+    if (audioPlayer->_fadeInTime > 0.0 && state == STKAudioPlayerInternalStatePlaying) {
+        if (entry->framesPlayed < sampleRate * audioPlayer->_fadeInTime) {
+            Float32 targetVolume = (Float32) entry->framesPlayed / (sampleRate * audioPlayer->_fadeInTime);
+            audioPlayer.volume = targetVolume;
+        } else {
+            audioPlayer->_fadeInTime = 0;
+            audioPlayer.volume = 1.0;
+        }
+    }
+
+
 	if (entry)
 	{
 		if (state == STKAudioPlayerInternalStateWaitingForData)
@@ -2743,7 +2755,7 @@ static OSStatus OutputRenderCallback(void* inRefCon, AudioUnitRenderActionFlags*
 			entry->filter(asbd.mChannelsPerFrame, asbd.mBytesPerFrame, inNumberFrames, ioData->mBuffers[0].mData);
 		}
 	}
-    
+
     if (audioPlayer->equalizerEnabled != audioPlayer->equalizerOn)
     {
         Boolean isUpdated;
