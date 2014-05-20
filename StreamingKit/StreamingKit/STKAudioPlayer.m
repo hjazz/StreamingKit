@@ -2595,6 +2595,13 @@ static OSStatus OutputRenderCallback(void* inRefCon, AudioUnitRenderActionFlags*
         audioPlayer->stopStartFrames = entry->framesPlayed;
         audioPlayer->stopEndFrames = entry->framesPlayed +
                 (SInt64)(entry->audioStreamBasicDescription.mSampleRate * audioPlayer->stopFadeOutSeconds);
+
+        // 음원 재생준비가 되기도 전에 stop 요청을 받은 경우, fade out 대신 바로 종료.
+        if (audioPlayer->stopEndFrames == 0 || entry->audioStreamBasicDescription.mSampleRate == 0) {
+            dispatch_async(dispatch_get_main_queue(), ^{
+                [audioPlayer dispose];
+            });
+        }
     }
 
     // 스믈스믈 fade out 진행
