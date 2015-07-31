@@ -816,15 +816,14 @@ static void AudioFileStreamPacketsProc(void* clientData, UInt32 numberBytes, UIn
                     UInt32 size = sizeof(newBasicDescription);
                     AudioFileStreamGetProperty(inAudioFileStream, kAudioFileStreamProperty_DataFormat, &size, &newBasicDescription);
                     entryToUpdate->audioStreamBasicDescription = newBasicDescription;
+                    if (entryToUpdate->audioStreamBasicDescription.mFormatID == 0)
+                    {
+                        entryToUpdate->audioStreamBasicDescription = newBasicDescription;
+                    }
                 }
 
                 pthread_mutex_lock(&playerMutex);
                 
-                if (entryToUpdate->audioStreamBasicDescription.mFormatID == 0)
-                {
-                    entryToUpdate->audioStreamBasicDescription = newBasicDescription;
-                }
-
                 entryToUpdate->sampleRate = entryToUpdate->audioStreamBasicDescription.mSampleRate;
                 entryToUpdate->packetDuration = entryToUpdate->audioStreamBasicDescription.mFramesPerPacket / entryToUpdate->sampleRate;
 
