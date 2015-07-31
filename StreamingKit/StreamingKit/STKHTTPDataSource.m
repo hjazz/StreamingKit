@@ -1,11 +1,11 @@
 /**********************************************************************************
  AudioPlayer.m
- 
+
  Created by Thong Nguyen on 14/05/2012.
  https://github.com/tumtumtum/audjustable
- 
+
  Copyright (c) 2012 Thong Nguyen (tumtumtum@gmail.com). All rights reserved.
- 
+
  Redistribution and use in source and binary forms, with or without
  modification, are permitted provided that the following conditions are met:
  1. Redistributions of source code must retain the above copyright
@@ -19,7 +19,7 @@
  4. Neither the name of Thong Nguyen nor the
  names of its contributors may be used to endorse or promote products
  derived from this software without specific prior written permission.
- 
+
  THIS SOFTWARE IS PROVIDED BY Thong Nguyen ''AS IS'' AND ANY
  EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
  WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
@@ -58,6 +58,8 @@
     AudioFileTypeID audioFileTypeHint;
     NSDictionary* requestHeaders;
 }
+@property(nonatomic, strong) NSDictionary *headers;
+
 -(void) open;
 
 @end
@@ -76,10 +78,17 @@
     return self;
 }
 
+-(id) initWithURL:(NSURL*)urlIn withHeaders:(NSDictionary*)headers
+{
+    id me = [self initWithURLProvider:^NSURL* { return urlIn; }];
+    self.headers = headers;
+    return me;
+}
+
 -(id) initWithURLProvider:(STKURLProvider)urlProviderIn
 {
 	urlProviderIn = [urlProviderIn copy];
-    
+
     return [self initWithAsyncURLProvider:^(STKHTTPDataSource* dataSource, BOOL forSeek, STKURLBlock block)
     {
         block(urlProviderIn());
@@ -93,18 +102,17 @@
         seekStart = 0;
         relativePosition = 0;
         fileLength = -1;
-        
+
         self->asyncUrlProvider = [asyncUrlProviderIn copy];
-        
+
         audioFileTypeHint = [STKLocalFileDataSource audioFileTypeHintFromFileExtension:self->currentUrl.pathExtension];
     }
-    
+
     return self;
 }
 
 -(void) dealloc
 {
-    NSLog(@"STKHTTPDataSource dealloc");
 }
 
 -(NSURL*) url
@@ -116,7 +124,7 @@
 {
     static dispatch_once_t onceToken;
     static NSDictionary* fileTypesByMimeType;
-    
+
     dispatch_once(&onceToken, ^
     {
         fileTypesByMimeType =
@@ -148,14 +156,14 @@
             @"video/3gp2": @(kAudioFile3GP2Type)
         };
     });
-    
+
     NSNumber* number = [fileTypesByMimeType objectForKey:mimeType];
-    
+
     if (!number)
     {
         return 0;
     }
-    
+
     return (AudioFileTypeID)number.intValue;
 }
 
@@ -170,41 +178,41 @@
     NSCharacterSet* characterSet = [NSCharacterSet characterSetWithCharactersInString:@"\r\n"];
     NSString* fullString = [[NSString alloc] initWithData:headerData encoding:NSUTF8StringEncoding];
     NSArray* strings = [fullString componentsSeparatedByCharactersInSet:characterSet];
-    
+
     httpHeaders = [NSMutableDictionary dictionary];
-    
+
     for (NSString* s in strings)
     {
         if (s.length == 0)
         {
             continue;
         }
-        
+
         if ([s hasPrefix:@"ICY "])
         {
             NSArray* parts = [s componentsSeparatedByString:@" "];
-            
+
             if (parts.count >= 2)
             {
                 self->httpStatusCode = [parts[1] intValue];
             }
-            
+
             continue;
         }
-        
+
         NSRange range = [s rangeOfString:@":"];
-        
+
         if (range.location == NSNotFound)
         {
             continue;
         }
-        
+
         NSString* key = [s substringWithRange: (NSRange){.location = 0, .length = range.location}];
         NSString* value = [s substringFromIndex:range.location + 1];
-        
+
         [retval setValue:value forKey:key];
     }
-    
+
     return retval;
 }
 
@@ -213,11 +221,11 @@
     if (!httpHeaderNotAvailable)
     {
         CFTypeRef response = CFReadStreamCopyProperty(stream, kCFStreamPropertyHTTPResponseHeader);
-        
+
         if (response)
         {
             httpHeaders = (__bridge_transfer NSDictionary*)CFHTTPMessageCopyAllHeaderFields((CFHTTPMessageRef)response);
-            
+
             if (httpHeaders.count == 0)
             {
                 httpHeaderNotAvailable = YES;
@@ -230,14 +238,14 @@
             CFRelease(response);
         }
     }
-    
+
     if (httpHeaderNotAvailable)
     {
         if (self->iceHeaderSearchComplete && !self->iceHeaderAvailable)
         {
             return YES;
         }
-        
+
         if (!self->iceHeaderSearchComplete)
         {
             UInt8 byte;
@@ -248,45 +256,45 @@
             {
                 iceHeaderData = [NSMutableData dataWithCapacity:1024];
             }
-            
+
             while (true)
             {
                 if (![self hasBytesAvailable])
                 {
                     break;
                 }
-                
+
                 int read = [super readIntoBuffer:&byte withSize:1];
-                
+
                 if (read <= 0)
                 {
                     break;
                 }
-                
+
                 [iceHeaderData appendBytes:&byte length:read];
-                
+
                 if (iceHeaderData.length >= sizeof(terminal1))
                 {
                     if (memcmp(&terminal1[0], [self->iceHeaderData bytes] + iceHeaderData.length - sizeof(terminal1), sizeof(terminal1)) == 0)
                     {
                         self->iceHeaderAvailable = YES;
                         self->iceHeaderSearchComplete = YES;
-                        
+
                         break;
                     }
                 }
-                
+
                 if (iceHeaderData.length >= sizeof(terminal2))
                 {
                     if (memcmp(&terminal2[0], [self->iceHeaderData bytes] + iceHeaderData.length - sizeof(terminal2), sizeof(terminal2)) == 0)
                     {
                         self->iceHeaderAvailable = YES;
                         self->iceHeaderSearchComplete = YES;
-                        
+
                         break;
                     }
                 }
-                
+
                 if (iceHeaderData.length >= 4)
                 {
                     if (memcmp([self->iceHeaderData bytes], "ICY ", 4) != 0 && memcmp([self->iceHeaderData bytes], "HTTP", 4) != 0)
@@ -294,12 +302,12 @@
                         self->iceHeaderAvailable = NO;
                         self->iceHeaderSearchComplete = YES;
                         prefixBytes = iceHeaderData;
-                        
+
                         return YES;
                     }
                 }
             }
-            
+
             if (!self->iceHeaderSearchComplete)
             {
                 return NO;
@@ -307,27 +315,27 @@
         }
 
         httpHeaders = [self parseIceHeader:self->iceHeaderData];
-        
+
         self->iceHeaderData = nil;
     }
-    
+
     if (([httpHeaders objectForKey:@"Accept-Ranges"] ?: [httpHeaders objectForKey:@"accept-ranges"]) != nil)
     {
         self->supportsSeek = YES;
     }
-    
+
     if (self.httpStatusCode == 200)
     {
         if (seekStart == 0)
         {
             id value = [httpHeaders objectForKey:@"Content-Length"] ?: [httpHeaders objectForKey:@"content-length"];
-            
+
             fileLength = (SInt64)[value longLongValue];
         }
-        
+
         NSString* contentType = [httpHeaders objectForKey:@"Content-Type"] ?: [httpHeaders objectForKey:@"content-type"] ;
         AudioFileTypeID typeIdFromMimeType = [STKHTTPDataSource audioFileTypeHintFromMimeType:contentType];
-        
+
         if (typeIdFromMimeType != 0)
         {
             audioFileTypeHint = typeIdFromMimeType;
@@ -337,7 +345,7 @@
     {
         NSString* contentRange = [httpHeaders objectForKey:@"Content-Range"] ?: [httpHeaders objectForKey:@"content-range"];
         NSArray* components = [contentRange componentsSeparatedByString:@"/"];
-        
+
         if (components.count == 2)
         {
             fileLength = [[components objectAtIndex:1] integerValue];
@@ -349,18 +357,18 @@
         {
             seekStart = self.length;
         }
-        
+
         [self eof];
-        
+
         return NO;
     }
     else if (self.httpStatusCode >= 300)
     {
         [self errorOccured];
-        
+
         return NO;
     }
-    
+
     return YES;
 }
 
@@ -370,7 +378,7 @@
     {
         return;
     }
-    
+
 	if (self.httpStatusCode == 0)
 	{
         if ([self parseHttpHeader])
@@ -379,7 +387,7 @@
             {
                 [super dataAvailable];
             }
-            
+
             return;
         }
         else
@@ -406,35 +414,35 @@
 -(void) reconnect
 {
     NSRunLoop* savedEventsRunLoop = eventsRunLoop;
-    
+
     [self close];
-    
+
     eventsRunLoop = savedEventsRunLoop;
-	
+
     [self seekToOffset:self.position];
 }
 
 -(void) seekToOffset:(SInt64)offset
 {
     NSRunLoop* savedEventsRunLoop = eventsRunLoop;
-    
+
     [self close];
-    
+
     eventsRunLoop = savedEventsRunLoop;
-	
+
     NSAssert([NSRunLoop currentRunLoop] == eventsRunLoop, @"Seek called on wrong thread");
-    
+
     stream = 0;
     relativePosition = 0;
     seekStart = offset;
-    
+
     self->isInErrorState = NO;
-    
+
     if (!self->supportsSeek && offset != self->relativePosition)
     {
         return;
     }
-    
+
     [self openForSeek:YES];
 }
 
@@ -449,32 +457,32 @@
     {
         return 0;
     }
-    
+
     if (prefixBytes != nil)
     {
         int count = MIN(size, (int)prefixBytes.length - prefixBytesRead);
-        
+
         [prefixBytes getBytes:buffer length:count];
-        
+
         prefixBytesRead += count;
-        
+
         if (prefixBytesRead >= prefixBytes.length)
         {
             prefixBytes = nil;
         }
-        
+
         return count;
     }
-    
+
     int read = [super readIntoBuffer:buffer withSize:size];
-    
+
     if (read < 0)
     {
         return read;
     }
-    
+
     relativePosition += read;
-    
+
     return read;
 }
 
@@ -486,17 +494,17 @@
 -(void) openForSeek:(BOOL)forSeek
 {
 	int localRequestSerialNumber;
-	
+
 	requestSerialNumber++;
 	localRequestSerialNumber = requestSerialNumber;
-	
+
     asyncUrlProvider(self, forSeek, ^(NSURL* url)
     {
 		if (localRequestSerialNumber != self->requestSerialNumber)
 		{
 			return;
 		}
-	
+
         self->currentUrl = url;
 
         if (url == nil)
@@ -516,12 +524,21 @@
         for (NSString* key in self->requestHeaders)
         {
             NSString* value = [self->requestHeaders objectForKey:key];
-            
+
             CFHTTPMessageSetHeaderFieldValue(message, (__bridge CFStringRef)key, (__bridge CFStringRef)value);
         }
-        
+
         CFHTTPMessageSetHeaderFieldValue(message, CFSTR("Accept"), CFSTR("*/*"));
         CFHTTPMessageSetHeaderFieldValue(message, CFSTR("Ice-MetaData"), CFSTR("0"));
+
+        if (self.headers)
+        {
+            for(NSString *key in self.headers.allKeys)
+            {
+                NSString *value = self.headers[key];
+                CFHTTPMessageSetHeaderFieldValue(message, (__bridge CFStringRef)key, (__bridge CFStringRef)value);
+            }
+        }
 
         stream = CFReadStreamCreateForHTTPRequest(NULL, message);
 
@@ -533,7 +550,7 @@
 
             return;
         }
- 
+
         CFReadStreamSetProperty(stream, (__bridge CFStringRef)NSStreamNetworkServiceTypeBackground, (__bridge CFStringRef)NSStreamNetworkServiceTypeBackground);
 
         if (!CFReadStreamSetProperty(stream, kCFStreamPropertyHTTPShouldAutoredirect, kCFBooleanTrue))
@@ -563,24 +580,24 @@
         }
 
         [self reregisterForEvents];
-        
+
 		self->httpStatusCode = 0;
-		
+
         // Open
         if (!CFReadStreamOpen(stream))
         {
             CFRelease(stream);
             CFRelease(message);
-            
+
             stream = 0;
 
             [self errorOccured];
 
             return;
         }
-        
+
         self->isInErrorState = NO;
-        
+
         CFRelease(message);
     });
 }
